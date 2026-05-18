@@ -33,7 +33,10 @@ def export_deploy_cfg(env: ManagerBasedRLEnv, log_dir):
     damping = np.zeros(len(joint_sdk_names))
     damping[joint_ids_map] = asset.data.default_joint_damping[0].detach().cpu().numpy().tolist()
     cfg["damping"] = damping.tolist()
-    cfg["default_joint_pos"] = asset.data.default_joint_pos[0].detach().cpu().numpy().tolist()
+    if hasattr(asset.data, "default_joint_pos_nominal"):
+        cfg["default_joint_pos"] = asset.data.default_joint_pos_nominal.detach().cpu().numpy().tolist()
+    else:
+        cfg["default_joint_pos"] = asset.data.default_joint_pos[0].detach().cpu().numpy().tolist()
 
     # --- commands ---
     cfg["commands"] = {}
@@ -61,11 +64,8 @@ def export_deploy_cfg(env: ManagerBasedRLEnv, log_dir):
         if term_cfg.clip is not None:
             term_cfg.clip = action_term._clip[0].detach().cpu().numpy().tolist()
 
-        if action_name in ["JointPositionAction", "JointVelocityAction"]:
-            if term_cfg.use_default_offset:
-                term_cfg.offset = action_term._offset[0].detach().cpu().numpy().tolist()
-            else:
-                term_cfg.offset = [0.0 for _ in range(action_term.action_dim)]
+        if action_name == "JointPositionAction":
+            term_cfg.offset = cfg["default_joint_pos"] if term_cfg.use_default_offset else 0.0
 
         # clean cfg
         term_cfg = term_cfg.to_dict()

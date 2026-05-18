@@ -52,6 +52,12 @@ class UnitreeActuator(DelayedPDActuator):
         self._friction_static = self._parse_joint_parameter(cfg.Fs, 0.0)
         self._friction_dynamic = self._parse_joint_parameter(cfg.Fd, 0.0)
         self._activation_vel = self._parse_joint_parameter(cfg.Va, 0.01)
+        self._motor_offset = self._parse_joint_parameter(cfg.motor_offset, 0.0)
+
+        # for domain randomization
+        self._default_friction_static = self._friction_static.clone()
+        self._default_friction_dynamic = self._friction_dynamic.clone()
+        self._default_motor_offset = self._motor_offset.clone()
 
     def compute(
         self, control_action: ArticulationActions, joint_pos: torch.Tensor, joint_vel: torch.Tensor
@@ -59,7 +65,7 @@ class UnitreeActuator(DelayedPDActuator):
         # save current joint vel
         self._joint_vel[:] = joint_vel
         # calculate the desired joint torques
-        control_action = super().compute(control_action, joint_pos, joint_vel)
+        control_action = super().compute(control_action, joint_pos + self._motor_offset, joint_vel)
 
         # apply friction model on the torque
         self.applied_effort -= (
@@ -117,6 +123,30 @@ class UnitreeActuatorCfg(DelayedPDActuatorCfg):
     Va: float = 0.01
     """ Velocity at which the friction is fully activated """
 
+    motor_offset: float = 0.0
+    """ The offset of the motor position. Unit: rad """
+
+    stiffness = None
+    """ The stiffness of the actuator joints. """
+
+    damping = None
+
+    NATURAL_FREQUENCY = 10.0 * 2.0 * 3.1415926535
+    """The natural frequency parameter for calculating stiffness and damping. See https://arxiv.org/pdf/2508.08241"""
+
+    def __post_init__(self, *args, **kwargs):
+        if self.Y2 is None:
+            self.Y2 = self.Y1
+        self.effort_limit_sim = self.Y2
+        self.velocity_limit_sim = self.X2
+
+        if self.armature is not None:
+            if self.stiffness is None:
+                self.stiffness = self.armature * self.NATURAL_FREQUENCY**2  # type: ignore
+            if self.damping is None:
+                DAMPTION_RATIO = 2.0
+                self.damping = 2.0 * DAMPTION_RATIO * self.armature * self.NATURAL_FREQUENCY  # type: ignore
+
 
 @configclass
 class UnitreeActuatorCfg_M107_15(UnitreeActuatorCfg):
@@ -126,6 +156,8 @@ class UnitreeActuatorCfg_M107_15(UnitreeActuatorCfg):
     Y2 = 182.8
 
     armature = 0.063259741
+    Fs = 0.16
+    Fd = 0.016
 
 
 @configclass
@@ -136,6 +168,8 @@ class UnitreeActuatorCfg_M107_24(UnitreeActuatorCfg):
     Y2 = 292.5
 
     armature = 0.160478022
+    Fs = 2.4
+    Fd = 0.24
 
 
 @configclass
@@ -154,15 +188,14 @@ class UnitreeActuatorCfg_N7520_14p3(UnitreeActuatorCfg):
     Y1 = 71
     Y2 = 83.3
 
-    Fs = 1.6
-    Fd = 0.16
-
     """
     | rotor  | 0.489e-4 kg·m²
     | gear_1 | 0.098e-4 kg·m² | ratio | 4.5
     | gear_2 | 0.533e-4 kg·m² | ratio | 48/22+1
     """
     armature = 0.01017752
+    Fs = 1.6
+    Fd = 0.16
 
 
 @configclass
@@ -173,15 +206,23 @@ class UnitreeActuatorCfg_N7520_22p5(UnitreeActuatorCfg):
     Y1 = 111.0
     Y2 = 131.0
 
-    Fs = 2.4
-    Fd = 0.24
-
     """
     | rotor  | 0.489e-4 kg·m²
     | gear_1 | 0.109e-4 kg·m² | ratio | 4.5
     | gear_2 | 0.738e-4 kg·m² | ratio | 5.0
     """
     armature = 0.025101925
+    Fs = 1.2
+    Fd = 0.12
+
+
+@configclass
+class UnitreeActuatorCfg_N7520_22p5_parallel(UnitreeActuatorCfg_N7520_22p5):
+    Y1 = UnitreeActuatorCfg_N7520_22p5().Y1 * 1.2
+    Y2 = UnitreeActuatorCfg_N7520_22p5().Y2 * 1.2  # type: ignore
+
+    armature = UnitreeActuatorCfg_N7520_22p5().armature * 2.0  # type: ignore
+    motor_offset = 0.06
 
 
 @configclass
@@ -197,6 +238,8 @@ class UnitreeActuatorCfg_N5010_16(UnitreeActuatorCfg):
     | gear_2 | 0.068e-4 kg·m² | ratio | 4
     """
     armature = 0.0021812
+    Fs = 0.1
+    Fd = 0.01
 
 
 @configclass
@@ -206,15 +249,23 @@ class UnitreeActuatorCfg_N5020_16(UnitreeActuatorCfg):
     Y1 = 24.8
     Y2 = 31.9
 
-    Fs = 0.6
-    Fd = 0.06
-
     """
     | rotor  | 0.139e-4 kg·m²
     | gear_1 | 0.017e-4 kg·m² | ratio | 46/18+1
     | gear_2 | 0.169e-4 kg·m² | ratio | 56/16+1
     """
     armature = 0.003609725
+    Fs = 0.6
+    Fd = 0.06
+
+
+@configclass
+class UnitreeActuatorCfg_N5020_16_parallel(UnitreeActuatorCfg_N5020_16):
+    Y1 = UnitreeActuatorCfg_N5020_16().Y1 * 1.2
+    Y2 = UnitreeActuatorCfg_N5020_16().Y2 * 1.2  # type: ignore
+
+    armature = UnitreeActuatorCfg_N5020_16().armature * 2.0  # type: ignore
+    motor_offset = 0.03
 
 
 @configclass
@@ -224,12 +275,35 @@ class UnitreeActuatorCfg_W4010_25(UnitreeActuatorCfg):
     Y1 = 4.8
     Y2 = 8.6
 
-    Fs = 0.6
-    Fd = 0.06
-
     """
     | rotor  | 0.068e-4 kg·m²
     | gear_1 |                | ratio | 5
     | gear_2 |                | ratio | 5
     """
     armature = 0.00425
+    Fs = 0.1
+    Fd = 0.01
+
+
+@configclass
+class UnitreeActuatorCfg_N6010B_32(UnitreeActuatorCfg):
+    X1 = 8.4
+    X2 = 15.3
+    Y1 = 53.7
+    Y2 = 66.7
+
+    armature = 0.003347153
+    Fs = 0.6
+    Fd = 0.06
+
+
+@configclass
+class UnitreeActuatorCfg_N6014B_12p6(UnitreeActuatorCfg):
+    X1 = 11.8
+    X2 = 27.2
+    Y1 = 31.7
+    Y2 = 34.4
+
+    armature = 0.025392063
+    Fs = 0.1
+    Fd = 0.01

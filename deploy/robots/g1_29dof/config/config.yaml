@@ -17,6 +17,9 @@ FSM:
     Mimic_Bad_Dance:
       id: 103
       type: Mimic
+    Mimic_Trump_Shuffle_2:
+      id: 104
+      type: Mimic
 
   Passive:
     transitions: 
@@ -69,6 +72,7 @@ FSM:
       Mimic_Dance_102: LT(2s) + down.on_pressed
       Mimic_Gangnam_Style: LT(2s) + left.on_pressed
       Mimic_Bad_Dance: LT(2s) + right.on_pressed
+      Mimic_Trump_Shuffle_2: LT(2s) + up.on_pressed
 
     policy_dir: config/policy/velocity
     # policy_dir: ../../../logs/rsl_rl/unitree_g1_29dof_velocity
@@ -99,4 +103,13 @@ FSM:
     policy_dir: config/policy/mimic/bad_dance/
     time_start: 0.0
     time_end: 4.6
+  Mimic_Trump_Shuffle_2:
+    transitions:
+      Passive: LT + B.on_pressed
+      Velocity: RB + X.on_pressed
+    fps: 30
+    motion_file: config/policy/mimic/trump_shuffle_2/params/trump_shuffle_2.csv
+    policy_dir: config/policy/mimic/trump_shuffle_2/
+    time_start: 0.0
+    time_end: 6.9
 

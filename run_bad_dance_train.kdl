@@ -1,0 +1,7 @@
+layout {
+    pane {
+        cwd "/home/liam-teale/unitree_rl_lab"
+        command "/home/liam-teale/miniconda3/envs/isaaclab_v6/bin/python"
+        args "scripts/rsl_rl/train.py" "--task=Tracking-Flat-G1-v0" "--registry_name" "liamteale6-none/csv_to_npz/bad_dance_run_1:v2" "--video" "--video_length" "300" "--video_interval" "2000" "--max_iterations" "5000" "--headless"
+    }
+}

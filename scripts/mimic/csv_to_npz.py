@@ -9,6 +9,8 @@
 """Launch Isaac Sim Simulator first."""
 
 import argparse
+import os
+
 import numpy as np
 
 from isaaclab.app import AppLauncher
@@ -36,9 +38,7 @@ AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
 if not args_cli.output_name:
     # generate at the same location as input file
-    args_cli.output_name = (
-        "/".join(args_cli.input_file.split("/")[:-1]) + "/" + args_cli.input_file.split("/")[-1].replace(".csv", ".npz")
-    )
+    args_cli.output_name = os.path.splitext(args_cli.input_file)[0] + ".npz"
 
 
 # launch omniverse app

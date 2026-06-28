@@ -66,6 +66,7 @@
 #include <cctype>
 #include <memory>
 #include <algorithm>
+#include <chrono>
 #include <yaml-cpp/yaml.h>
 
 #include <unitree/dds_wrapper/common/unitree_joystick.hpp>
@@ -310,6 +311,41 @@ inline std::function<bool(const UnitreeJoystick&)> Compile(const Node& n) {
   switch (n.kind) {
     case Node::kAtom: {
       Atom a = n.atom;
+      if (a.field == Field::kHoldTimeGE) {
+        // Stateful, debounce-tolerant long-press detector.
+        //
+        // KeyBase::pressed_time (in the vendored SDK) resets to ~0 on every rising
+        // edge, so a single dropped sample restarts the hold timer. That happens
+        // constantly for the analog LT/RT triggers (thresholded axes) and over a
+        // jittery wireless link, which makes "LT(2s)+..." combos very hard to fire.
+        //
+        // Instead, track the hold locally: start the clock on first press and only
+        // forget it after the key has been continuously released for longer than
+        // kReleaseDebounce. Brief dropouts no longer reset the accumulated hold time.
+        struct HoldState {
+          bool armed = false;
+          std::chrono::steady_clock::time_point press_start{};
+          std::chrono::steady_clock::time_point last_pressed{};
+        };
+        auto st = std::make_shared<HoldState>();
+        const std::string name = a.name;
+        const float hold = a.hold_seconds;
+        return [st, name, hold](const UnitreeJoystick& joy) -> bool {
+          constexpr float kReleaseDebounce = 0.15f; // seconds of continuous release to reset
+          const KeyBase& kb = GetKey(joy, name);
+          const auto now = std::chrono::steady_clock::now();
+          if (kb.pressed) {
+            if (!st->armed) { st->armed = true; st->press_start = now; }
+            st->last_pressed = now;
+          } else if (st->armed) {
+            if (std::chrono::duration<float>(now - st->last_pressed).count() > kReleaseDebounce) {
+              st->armed = false;
+            }
+          }
+          return st->armed &&
+                 std::chrono::duration<float>(now - st->press_start).count() >= hold;
+        };
+      }
       return [a](const UnitreeJoystick& joy) -> bool {
         const KeyBase& kb = GetKey(joy, a.name);
         switch (a.field) {
